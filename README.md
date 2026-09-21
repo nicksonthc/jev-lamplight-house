@@ -126,6 +126,42 @@ And if you would rather the page not be publicly usable at all, turn on
 Deployment Protection for the project; the scene still works, answered by the
 local rules.
 
+### Keeping other people out
+
+`AI_GATEWAY_API_KEY` and `VERCEL_OIDC_TOKEN` say *what may call the model*.
+`JEV_PASSWORD` says *who may ask*. Set it and the deployment is locked: the
+interface shows a password screen, and — the part that matters — `/api/jev`
+refuses anything without a session cookie, so no amount of poking at the
+endpoint spends anything.
+
+```sh
+vercel env add JEV_PASSWORD production   # or add it in the dashboard
+vercel deploy --prod
+```
+
+The check is enforced in `src/server/session.ts`, on the server, because
+that is where the spending happens; the lock screen is a consequence of it
+rather than the mechanism. Deleting the component in devtools buys a view of
+an unlit cottage and nothing else. The session is an HttpOnly, SameSite=Lax
+cookie signed with an HMAC keyed on the password, so changing the password
+invalidates every session, and wrong guesses are throttled to ten a minute.
+
+**With no `JEV_PASSWORD` set, a Vercel deployment lets nobody in at all.**
+That is deliberate: forgetting the variable must not leave a public endpoint
+open in front of a paid model. Locally, an unset password simply means no
+gate.
+
+While the gate is on, answers are no longer offered to a shared cache — the
+edge keys on the URL alone, so a cached `200` would be served to anyone who
+guessed it. The per-instance cache still spares the model.
+
+If you would rather hide the page itself as well, Vercel's own **Vercel
+Authentication** with the scope set to *All Deployments* is free on every
+plan and needs no code; it restricts the whole site to your Vercel account.
+(Vercel's *Password* Protection is a paid Pro feature — this gate is the
+free equivalent, and unlike Vercel Authentication it can be shared with
+someone who has no Vercel account.)
+
 ## How it is put together
 
 ```

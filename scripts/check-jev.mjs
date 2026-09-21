@@ -1,6 +1,22 @@
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+
+/**
+ * The password, if this deployment has one. Read the same files the dev
+ * server reads, so `npm run check` needs no more setup than `npm run dev`;
+ * an explicit `JEV_PASSWORD=… npm run check` wins, which is how you check a
+ * deployment whose password is not on this machine.
+ */
+async function password() {
+  if (process.env.JEV_PASSWORD) return process.env.JEV_PASSWORD;
+  for (const file of ['.env', '.env.local']) {
+    const text = await readFile(file, 'utf8').catch(() => '');
+    const line = text.split('\n').find((l) => l.startsWith('JEV_PASSWORD='));
+    if (line) return line.slice('JEV_PASSWORD='.length).trim();
+  }
+  return null;
+}
 
 /**
  * The check.
@@ -41,10 +57,11 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: 1400, height: 860 }, deviceScaleFactor: 1 });
 const errors = [];
-// The endpoint probes below deliberately send requests the server must
-// refuse, and the browser logs every one as a console error. The page itself
-// never produces a 400 or a 405, so ignoring exactly those is safe.
-const expected = (text) => /status of (400|405)/.test(text);
+// The probes below deliberately send requests the server must refuse — a
+// wrong password, a malformed state, a POST — and the browser logs every one
+// as a console error. The page itself never produces any of these, so
+// ignoring exactly these three statuses is safe.
+const expected = (text) => /status of (400|401|405)/.test(text);
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && !expected(m.text()) && errors.push(m.text()));
 page.on('crash', () => errors.push('the page crashed'));
@@ -67,6 +84,46 @@ const PARTS = [
   'laundry',
   'gramophone',
 ];
+
+// --- the password gate ----------------------------------------------------
+// The gate is enforced on `/api/jev`, not in the browser, so the check tests
+// it where it is: the endpoint must refuse before the form is filled in, and
+// the form must be what lifts the refusal.
+const gate = await page.evaluate(async () => (await fetch('/api/session')).json());
+if (gate.required) {
+  const locked = await page.evaluate(async () => (await fetch('/api/jev?s=000000000000')).status);
+  assert.equal(locked, 401, 'a locked deployment refuses /api/jev outright');
+
+  const secret = await password();
+  assert.ok(secret, 'this deployment is locked; set JEV_PASSWORD to check it');
+
+  const wrong = await page.evaluate(
+    async () =>
+      (
+        await fetch('/api/session', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ password: 'not the password' }),
+        })
+      ).status,
+  );
+  assert.equal(wrong, 401, 'and refuses a wrong password');
+
+  // Through the form, as a visitor would, rather than by posting behind it.
+  await page.getByLabel(/password|口令/i).fill(secret);
+  await page.getByRole('button', { name: /unlock|开锁/i }).click();
+  await page.waitForFunction(() => window.jev.store.getState().gate?.unlocked === true, {
+    timeout: 30_000,
+  });
+  assert.equal(
+    await page.evaluate(async () => (await fetch('/api/jev?s=000000000000')).status),
+    200,
+    'and opens once the password is right',
+  );
+  console.log('gate: locked until the password, then open');
+} else {
+  console.log('gate: no password configured, so the page is open');
+}
 
 // The title card covers the canvas until it is dismissed, and dismissing it
 // is also what asks Jev the first question — so the check goes in the way a
@@ -295,6 +352,14 @@ const second = await ask();
 
 if (first.body.source !== 'jev') {
   console.log('!! no model, so nothing to cache — skipping the cache assertions');
+} else if (gate.required) {
+  // A gated deployment must keep its answers out of every shared cache: the
+  // edge keys on the URL alone, so a cached 200 would be served to anyone
+  // who guessed the URL, password or no password. The per-instance map is
+  // what still spares the model.
+  assert.match(first.control, /no-store/, 'a gated answer is never offered to a shared cache');
+  assert.equal(second.body.cached, true, 'but the instance cache still spares the model');
+  console.log('cache: no shared caching while gated; the instance cache still holds');
 } else {
   assert.match(first.control, /public/, 'a model answer is marked cacheable');
   if (second.edge) {

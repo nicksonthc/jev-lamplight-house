@@ -15,6 +15,8 @@ export function TitleCard() {
   const language = useJevStore((s) => s.language);
   const t = jevCopy[language];
   const ready = useJevStore((s) => s.ready);
+  const gate = useJevStore((s) => s.gate);
+  const locked = gate === null || (gate.required && !gate.unlocked);
   const ask = useJevStore((s) => s.ask);
   const [dismissed, setDismissed] = useState(false);
 
@@ -25,10 +27,10 @@ export function TitleCard() {
 
   return (
     <div
-      aria-hidden={dismissed}
+      aria-hidden={dismissed || locked}
       className={cx(
         'fixed inset-0 z-20 flex items-center justify-center bg-ink/75 p-6 backdrop-blur-sm transition-opacity duration-700',
-        dismissed ? 'pointer-events-none opacity-0' : 'opacity-100',
+        dismissed || locked ? 'pointer-events-none opacity-0' : 'opacity-100',
       )}
     >
       <div className="panel max-w-xl rounded-xl p-7 sm:p-9">

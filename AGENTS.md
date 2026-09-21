@@ -64,6 +64,20 @@ point on a five-rung ladder and drives the daylight; the `mood` choice picks a
 `Look`. Thresholding an answer back down to a yes/no throws away what an
 evaluation model is for.
 
+**The password gate is enforced on the endpoint, not in the browser.**
+`JEV_PASSWORD` is read at runtime by `src/server/session.ts`; when it is set,
+`/api/jev` refuses without a signed HttpOnly session cookie and the lock
+screen is merely the visible consequence. Two rules follow and both are easy
+to undo by accident. **On Vercel with no password set the deployment refuses
+everyone** — forgetting the variable must not leave a public endpoint open in
+front of a paid model, so `gateState()` returns `misconfigured` rather than
+`off` when `process.env.VERCEL` is set. And **a gated response is never
+offered to a shared cache**, because the edge keys on the URL alone and would
+serve a cached `200` to anyone who guessed it; the per-instance map still
+spares the model. Note that Vite's `loadEnv` does not populate `process.env`,
+so `vite.config.ts` bridges the password across by hand — without that the
+dev server is ungated while the deployment is locked.
+
 **The endpoint is public, and its shape is the security model.** It takes
 twelve bits (`?s=` plus twelve `0`/`1`) and refuses everything else with a
 400 before a credential is touched; `POST` is a 405. That is deliberate and

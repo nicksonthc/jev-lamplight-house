@@ -9,6 +9,7 @@ import { JevChrome } from './ui/JevChrome';
 import { Reading } from './ui/Reading';
 import { Response } from './ui/Response';
 import { Switchboard } from './ui/Switchboard';
+import { Lock } from './ui/Lock';
 import { TitleCard } from './ui/TitleCard';
 
 /**
@@ -42,9 +43,16 @@ const GL = {
 
 export function App() {
   const language = useJevStore((s) => s.language);
+  const checkGate = useJevStore((s) => s.checkGate);
+
   useEffect(() => {
     document.documentElement.lang = htmlLang(language);
   }, [language]);
+
+  // Before anything else: is there a password on the way in.
+  useEffect(() => {
+    void checkGate();
+  }, [checkGate]);
 
   return (
     <>
@@ -79,6 +87,7 @@ export function App() {
       </div>
 
       <TitleCard />
+      <Lock />
     </>
   );
 }

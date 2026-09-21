@@ -72,8 +72,19 @@ const initialMotion = () => {
   return motion;
 };
 
+/** What `/api/session` says about the way in. */
+export interface Gate {
+  /** A password is configured, so the endpoint will refuse without one. */
+  required: boolean;
+  unlocked: boolean;
+  /** Set when the deployment has no password and therefore lets nobody in. */
+  misconfigured?: boolean;
+}
+
 interface JevStore {
   language: Language;
+  /** Null until `/api/session` has been asked. */
+  gate: Gate | null;
   switches: HouseSwitches;
   /** Every animated scalar on the page, keyed by switch id plus the two
    *  Jev drives directly: `welcome` (0–1) and `cat` (P(true)). */
@@ -93,6 +104,10 @@ interface JevStore {
   ready: boolean;
 
   toggleLanguage: () => void;
+  /** Ask whether a password is needed. Called once as the page opens. */
+  checkGate: () => Promise<void>;
+  /** Try a password. Resolves to an error message, or null on success. */
+  unlock: (password: string) => Promise<string | null>;
   flip: (id: SwitchId) => void;
   setHovered: (id: PartId | null) => void;
   setView: (view: ViewName) => void;
@@ -111,6 +126,7 @@ let debounce: ReturnType<typeof setTimeout> | null = null;
 
 export const useJevStore = create<JevStore>((set, get) => ({
   language: 'en',
+  gate: null,
   switches: { ...INITIAL },
   motion: initialMotion(),
   reply: null,
@@ -123,6 +139,34 @@ export const useJevStore = create<JevStore>((set, get) => ({
   ready: false,
 
   toggleLanguage: () => set({ language: get().language === 'en' ? 'zh' : 'en' }),
+
+  checkGate: async () => {
+    try {
+      const response = await fetch('/api/session');
+      const gate = (await response.json()) as Gate & { state?: string };
+      set({ gate: { ...gate, misconfigured: gate.state === 'misconfigured' } });
+    } catch {
+      // No endpoint at all — a static host. Nothing to unlock, and `ask`
+      // will fall back to the local rules on its own.
+      set({ gate: { required: false, unlocked: true } });
+    }
+  },
+
+  unlock: async (password) => {
+    try {
+      const response = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) return body.error ?? `The server answered ${response.status}.`;
+      set({ gate: { required: true, unlocked: true } });
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  },
 
   flip: (id) => {
     const switches = { ...get().switches, [id]: !get().switches[id] };
@@ -194,6 +238,12 @@ export const useJevStore = create<JevStore>((set, get) => ({
       const response = await fetch(`/api/jev?s=${stateKey(switches)}`, {
         signal: controller.signal,
       });
+      if (response.status === 401) {
+        // The session expired, or the password changed under us. Put the
+        // lock screen back rather than quietly answering from the rules.
+        set({ gate: { required: true, unlocked: false }, asking: false });
+        return null;
+      }
       if (!response.ok) throw new Error(`/api/jev answered ${response.status}`);
       reply = (await response.json()) as JevReply;
     } catch (error) {

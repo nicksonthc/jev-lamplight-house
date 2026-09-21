@@ -9,7 +9,7 @@ import tailwindcss from '@tailwindcss/vite';
 // in place without rewriting its imports, so an extensionless or `.ts`
 // specifier is left in the emitted `.js` and the function dies at runtime
 // with ERR_MODULE_NOT_FOUND.
-import { handleJevRequest } from './src/server/handler.js';
+import { handleJevRequest, handleSessionRequest } from './src/server/handler.js';
 import type { GatewayCredentials } from './src/server/judge.js';
 
 /**
@@ -22,11 +22,16 @@ import type { GatewayCredentials } from './src/server/judge.js';
  * `VERCEL_OIDC_TOKEN` is what `vercel link` writes into `.env.local`, and is
  * the credential a free account can actually use; `AI_GATEWAY_API_KEY` is the
  * override. `src/server/judge.ts` decides between them.
+ *
+ * `/api/session` is the password gate, mounted here for the same reason: so
+ * a locked deployment and a locked dev server behave identically.
  */
 const jevApi = (credentials: GatewayCredentials): Plugin => {
   const handle = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-    if (!req.url?.split('?')[0].endsWith('/api/jev')) return next();
-    void handleJevRequest(req, res, credentials);
+    const path = req.url?.split('?')[0] ?? '';
+    if (path.endsWith('/api/session')) return void handleSessionRequest(req, res);
+    if (path.endsWith('/api/jev')) return void handleJevRequest(req, res, credentials);
+    next();
   };
   return {
     name: 'jev-api',
@@ -36,9 +41,18 @@ const jevApi = (credentials: GatewayCredentials): Plugin => {
 };
 
 export default defineConfig(({ mode }) => {
-  // The empty prefix loads every variable, not just `VITE_`; neither
-  // credential leaves this Node process.
+  // The empty prefix loads every variable, not just `VITE_`; nothing loaded
+  // here leaves this Node process.
   const env = loadEnv(mode, process.cwd(), '');
+
+  // `loadEnv` returns a plain object and deliberately does *not* populate
+  // `process.env`, which `src/server/session.ts` reads — as it must, because
+  // on Vercel that is where the variable arrives. Bridge it here, or a
+  // password in `.env` silently leaves the dev server ungated while the
+  // deployment is locked, and the two stop being the same page.
+  if (env.JEV_PASSWORD && !process.env.JEV_PASSWORD) {
+    process.env.JEV_PASSWORD = env.JEV_PASSWORD;
+  }
 
   return {
     plugins: [
