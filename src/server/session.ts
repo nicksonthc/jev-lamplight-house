@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
  * The password gate.
@@ -42,15 +42,23 @@ export function gateState(): GateState {
 }
 
 /**
- * A secret for signing sessions. Derived from the password so there is only
- * one thing to configure — and so changing the password invalidates every
- * session that was issued under the old one, which is what you want from a
- * password change. Salted with a per-instance value so a signature cannot be
- * replayed against a different deployment.
+ * The key sessions are signed with. Derived from the password and **nothing
+ * else** — in particular nothing generated at module load.
+ *
+ * The first version salted this with `randomBytes` per process, reasoning
+ * that a signature should not be replayable elsewhere. That is wrong here,
+ * and wrong in a way that only shows up deployed: a serverless deployment
+ * answers consecutive requests from different instances, so the instance
+ * that issues a cookie is almost never the one that verifies it. Every
+ * request after the unlock came back 401 and the lock screen returned on the
+ * first switch. A dev server is one process, so it looked fine.
+ *
+ * Keying on the password alone is what makes a session portable across
+ * instances, and it keeps the property that actually mattered: change the
+ * password and every session issued under the old one stops verifying.
  */
-const salt = randomBytes(16).toString('hex');
 const sign = (value: string) =>
-  createHmac('sha256', `${password()}:${salt}`).update(value).digest('hex');
+  createHmac('sha256', `jev-session:${password()}`).update(value).digest('hex');
 
 /** Constant-time, and length-safe: `timingSafeEqual` throws on a mismatch. */
 function sameSecret(a: string, b: string): boolean {

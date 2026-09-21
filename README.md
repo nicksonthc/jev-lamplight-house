@@ -210,7 +210,8 @@ needs no change anywhere else.
 With a dev or preview server running:
 
 ```sh
-npm run check
+npm run check           # the session invariants, then the browser check
+npm run check:session   # the session invariants alone; no browser, milliseconds
 ```
 
 It asserts that each of the eleven switches moves its own part and nothing

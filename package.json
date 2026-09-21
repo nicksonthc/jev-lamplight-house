@@ -10,7 +10,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "check": "node scripts/check-jev.mjs"
+    "check": "node scripts/check-session.mjs && node scripts/check-jev.mjs",
+    "check:session": "node scripts/check-session.mjs"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.87",

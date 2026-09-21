@@ -16,7 +16,8 @@ npm run build        # tsc --noEmit, then vite build
 npm run typecheck    # the fast feedback loop
 npm run preview      # serve dist/ on 4173
 
-PREVIEW_URL=http://127.0.0.1:5173 npm run check   # Playwright, needs a server
+PREVIEW_URL=http://127.0.0.1:5173 npm run check   # session + Playwright; needs a server
+npm run check:session                            # the session invariants alone, no browser
 ```
 
 There is no unit test suite. `typecheck` plus `npm run check` is the whole
@@ -63,6 +64,17 @@ P(true) and the cat is that probability walked along a curve; the `score` is a
 point on a five-rung ladder and drives the daylight; the `mood` choice picks a
 `Look`. Thresholding an answer back down to a yes/no throws away what an
 evaluation model is for.
+
+**Nothing generated at module load may go into a signing key.** A serverless
+deployment answers consecutive requests from different instances, so anything
+minted per process — a random salt, a start timestamp, an instance id — makes
+a session cookie valid exactly once, on the instance that issued it. The
+symptom is a page that unlocks and then re-locks on the very next request,
+and **it cannot be reproduced against a dev server, because a dev server is
+one process.** `session.ts` shipped with exactly that bug. The key is derived
+from `JEV_PASSWORD` and nothing else; `scripts/check-session.mjs` runs the
+module in two processes and makes them agree, which is the only way a check
+can see this.
 
 **The password gate is enforced on the endpoint, not in the browser.**
 `JEV_PASSWORD` is read at runtime by `src/server/session.ts`; when it is set,
