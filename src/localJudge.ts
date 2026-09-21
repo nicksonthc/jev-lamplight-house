@@ -4,7 +4,7 @@ import {
   type Nudge,
   type Verdict,
   WELCOME_LEVELS,
-} from './questions.ts';
+} from './questions.js';
 
 /**
  * The stand-in judge: the same four answers, decided by rules written here.

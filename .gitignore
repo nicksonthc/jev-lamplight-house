@@ -28,3 +28,4 @@ playwright-report/
 # Logs
 *.log
 npm-debug.log*
+.env*

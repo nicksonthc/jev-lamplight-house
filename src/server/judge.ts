@@ -1,6 +1,6 @@
 import { createGateway } from '@ai-sdk/gateway';
 import { experimental_evaluate as evaluate } from 'ai';
-import { judgeLocally } from '../localJudge.ts';
+import { judgeLocally } from '../localJudge.js';
 import {
   describeHouse,
   PART_IDS,
@@ -8,10 +8,10 @@ import {
   type HouseSwitches,
   type JevReply,
   type Verdict,
-} from '../questions.ts';
+} from '../questions.js';
 
 /**
- * The Node half of `/jev`. **Server only** — it is imported by `api/jev.ts` on
+ * The Node half of the page. **Server only** — it is imported by `api/jev.ts` on
  * Vercel and by the `jev-api` plugin in `vite.config.ts` for the dev and
  * preview servers, and by nothing under `src/jev` that the browser loads. That
  * is the whole reason this file sits in its own folder: the credential is read

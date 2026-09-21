@@ -2,10 +2,15 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-// Explicit `.ts` here and down this one import chain: Vite's native config
-// loader cannot resolve an extensionless specifier, and this is the only
-// application code the config itself pulls in.
-import { judgeHouse, type GatewayCredentials } from './src/server/judge.ts';
+// Explicit `.js` here and down this one import chain, pointing at the `.ts`
+// files beside them — the ESM spelling that TypeScript, esbuild and Node all
+// understand. It is load-bearing twice over: Vite's config loader cannot
+// resolve an extensionless specifier, and Vercel transpiles each server file
+// in place without rewriting its imports, so an extensionless or `.ts`
+// specifier is left in the emitted `.js` and the function dies at runtime
+// with ERR_MODULE_NOT_FOUND.
+import { handleJevRequest } from './src/server/handler.js';
+import type { GatewayCredentials } from './src/server/judge.js';
 
 /**
  * `POST /api/jev` on the dev and preview servers. Production gets the same
@@ -19,23 +24,9 @@ import { judgeHouse, type GatewayCredentials } from './src/server/judge.ts';
  * override. `src/server/judge.ts` decides between them.
  */
 const jevApi = (credentials: GatewayCredentials): Plugin => {
-  const handle = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+  const handle = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     if (!req.url?.split('?')[0].endsWith('/api/jev')) return next();
-    if (req.method !== 'POST') {
-      res.writeHead(405, { allow: 'POST' }).end('Method Not Allowed');
-      return;
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk as Buffer);
-    let body: unknown = {};
-    try {
-      body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-    } catch {
-      // An unparseable body judges an all-off house, which is a fine answer.
-    }
-    const reply = await judgeHouse(body, credentials);
-    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    res.end(JSON.stringify(reply));
+    void handleJevRequest(req, res, credentials);
   };
   return {
     name: 'jev-api',
