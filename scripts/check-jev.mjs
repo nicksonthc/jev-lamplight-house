@@ -272,16 +272,39 @@ console.log('endpoint: refuses everything but twelve bits; POST is 405');
 
 // Cacheable, which is what keeps a public endpoint from being a running
 // meter: 4096 states is the entire universe of questions it can be asked.
-const again = await page.evaluate(async () => {
-  const r = await fetch('/api/jev?s=010101010101', { cache: 'reload' });
-  return { cache: r.headers.get('cache-control'), body: await r.json() };
-});
-if (again.body.source === 'jev') {
-  assert.match(again.cache ?? '', /s-maxage=\d{4,}/, 'a model answer is cached at the edge');
-  assert.equal(again.body.cached, true, 'and the second ask is served from the cache');
-  console.log(`cache: repeat served from cache, ${again.cache}`);
+//
+// How to *prove* it differs by where this runs. Straight from the function
+// the response still carries `s-maxage`, and the second ask comes back from
+// the instance's own map. Behind Vercel's edge it does not: a CDN consumes
+// the shared-cache directives and rewrites what it passes downstream, so
+// `s-maxage` is gone and the evidence is `x-vercel-cache` instead — which is
+// the better evidence anyway, because a HIT means the function was never
+// invoked at all.
+const ask = () =>
+  page.evaluate(async () => {
+    const r = await fetch('/api/jev?s=010101010101', { cache: 'reload' });
+    return {
+      control: r.headers.get('cache-control') ?? '',
+      edge: r.headers.get('x-vercel-cache'),
+      body: await r.json(),
+    };
+  });
+
+const first = await ask();
+const second = await ask();
+
+if (first.body.source !== 'jev') {
+  console.log('!! no model, so nothing to cache — skipping the cache assertions');
 } else {
-  console.log('!! no model, so nothing to cache — skipping the cache assertion');
+  assert.match(first.control, /public/, 'a model answer is marked cacheable');
+  if (second.edge) {
+    assert.match(second.edge, /HIT|STALE/, `the edge served the repeat (${second.edge})`);
+    console.log(`cache: the edge served the repeat — x-vercel-cache ${second.edge}`);
+  } else {
+    assert.match(first.control, /s-maxage=\d{4,}/, 'and is offered to a shared cache');
+    assert.equal(second.body.cached, true, 'and the repeat came from the instance cache');
+    console.log(`cache: repeat served from the instance cache, ${first.control}`);
+  }
 }
 
 // --- the interface ---------------------------------------------------------
