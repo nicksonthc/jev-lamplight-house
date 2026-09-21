@@ -1,0 +1,84 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@400;500&display=swap");
+@import "tailwindcss" source(none);
+
+/* Explicit sources rather than automatic detection: the crawl is cheap here
+   today, but this page's whole reason for existing is a 3D scene, and a
+   models directory is the first thing that gets added to one. */
+@source "./**/*.{ts,tsx}";
+@source "../index.html";
+
+/* The interface palette: lacquer green, rice paper, lantern light. The scene
+   has its own, warmer palette in `src/scene/palette.ts` — these tokens are
+   only for the panels floating over it. */
+@theme {
+  --color-ink: #10211b;
+  --color-moss: #243d34;
+  --color-moss-light: #405751;
+  --color-reed: #9da992;
+  --color-rice: #f5f1de;
+  --color-rice-dim: #e0e2d3;
+  --color-mist: #c6cfbd;
+  --color-lantern: #f8dda0;
+  --color-jade: #63817f;
+
+  --font-sans: "DM Sans", "PingFang SC", "Microsoft YaHei", ui-sans-serif, sans-serif;
+  --font-display: "Playfair Display", Georgia, "Songti SC", serif;
+
+  --tracking-plaque: 0.2em;
+
+  --animate-breathe: breathe 4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@layer base {
+  :root {
+    color: var(--color-rice);
+    background: var(--color-reed);
+    font-family: var(--font-sans);
+    font-synthesis: none;
+    color-scheme: dark;
+  }
+
+  /* The page is a room you orbit, not a spine you scroll. */
+  body {
+    margin: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  canvas {
+    display: block;
+    touch-action: none;
+  }
+
+  button,
+  a,
+  input {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-lantern);
+    outline-offset: 4px;
+  }
+}
+
+@utility plaque {
+  /* The small uppercase captions that label everything in the interface. */
+  font-size: 0.5rem;
+  line-height: 1.6;
+  letter-spacing: var(--tracking-plaque);
+  text-transform: uppercase;
+  color: var(--color-mist);
+}
+
+@utility panel {
+  /* Frosted lacquer: the shared treatment for every floating control. */
+  border: 1px solid --alpha(var(--color-rice) / 27%);
+  background: --alpha(var(--color-moss) / 60%);
+  backdrop-filter: blur(14px);
+}
