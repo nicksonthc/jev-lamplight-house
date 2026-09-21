@@ -115,6 +115,7 @@ export const jevCopy = {
     recent: 'Recent asks',
     auths: { oidc: 'oidc', 'api-key': 'api key' },
     probability: 'P(true)',
+    cached: 'cached',
   },
   zh: {
     mark: 'JEV',
@@ -181,6 +182,7 @@ export const jevCopy = {
     recent: '最近几次',
     auths: { oidc: 'oidc', 'api-key': 'api key' },
     probability: 'P(真)',
+    cached: '缓存',
   },
 } satisfies Record<Language, unknown>;
 

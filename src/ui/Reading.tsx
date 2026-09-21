@@ -173,6 +173,7 @@ export function Reading() {
             <span className="text-[0.6rem] text-reed tabular-nums">
               {reply.ms} ms{reply.inputTokens ? ` · ${reply.inputTokens} ${t.tokens}` : ''}
               {reply.source === 'jev' && reply.auth ? ` · ${reply.auth}` : ''}
+              {reply.cached ? ` · ${t.cached}` : ''}
             </span>
           )}
           <button

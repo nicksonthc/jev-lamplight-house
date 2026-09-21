@@ -88,6 +88,44 @@ Neither variable carries a `VITE_` prefix, deliberately: that prefix is what
 tells Vite to inline a value into the browser bundle. `npm run build` is the
 test — grep `dist/` for `@ai-sdk` and it is not there.
 
+## Leaving the endpoint open
+
+`/api/jev` is public, and a public endpoint in front of a model is normally a
+way to spend somebody else's money. The credential itself is never at risk —
+it stays in the function and the build is grepped to prove it — but the
+*quota behind it* would be, so three things guard it, in order of how much
+they matter.
+
+**The input space is 4096 states.** A request carries twelve bits (`?s=` and
+twelve `0`/`1` characters) and nothing else; anything else is a 400 before a
+credential is touched, and `POST` is a 405. This is the property that
+matters, because it means the endpoint cannot be used to put an arbitrary
+prompt through the model. The worst an abuser can do is ask about a cottage.
+
+**So every answer is cacheable, and the cache is the whole universe.** A
+model answer comes back with `s-maxage=86400`, so Vercel's edge serves
+repeats without invoking the function at all (`x-vercel-cache: HIT`), and a
+warm instance keeps its own map for the misses. Traffic stops being
+proportional to cost. At Jev's $0.042 per million input tokens and ~1 000
+tokens an ask, **every distinct question anyone can ever ask costs about
+$0.17 in total** — and after that the model is never called again.
+
+**A rate limit on what is left.** Only genuine cache misses reach the model,
+at most twenty a minute per instance. Past that the local rules answer and
+say so, which the page already renders honestly, so a throttled visitor sees
+a working scene rather than an error.
+
+If you want a hard ceiling on top of that, set a gateway budget — it is a
+spend cap, so it is only meaningful once the account is metered:
+
+```sh
+vercel ai-gateway budgets set project jev-lamplight-house --limit 1 --refresh-period monthly
+```
+
+And if you would rather the page not be publicly usable at all, turn on
+Deployment Protection for the project; the scene still works, answered by the
+local rules.
+
 ## How it is put together
 
 ```

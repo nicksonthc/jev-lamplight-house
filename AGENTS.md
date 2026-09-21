@@ -64,6 +64,19 @@ point on a five-rung ladder and drives the daylight; the `mood` choice picks a
 `Look`. Thresholding an answer back down to a yes/no throws away what an
 evaluation model is for.
 
+**The endpoint is public, and its shape is the security model.** It takes
+twelve bits (`?s=` plus twelve `0`/`1`) and refuses everything else with a
+400 before a credential is touched; `POST` is a 405. That is deliberate and
+load-bearing: an endpoint in front of a model that accepted free-form input
+would be somebody else's prompt budget. Because the input space is only 4096
+states, a model answer is returned with a long `s-maxage` and the edge serves
+every repeat without invoking the function — so traffic is not proportional
+to cost, and the entire universe of answers is about $0.17 of tokens. What
+gets past the cache is rate limited to twenty model calls a minute per
+instance, and beyond that the local rules answer and say so. Anything that
+widens the accepted input — a free-text field, a model parameter, a prompt —
+throws all of that away at once.
+
 **`src/server/` is server-only.** It is the only place that imports `ai` or
 `@ai-sdk/gateway`, and nothing the browser loads may import it. `npm run
 build` is the test — grep `dist/` for `@ai-sdk` and it is not there. That one

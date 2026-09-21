@@ -67,6 +67,32 @@ const WEATHER: [dry: string, wet: string] = [
 
 export type HouseState = { outside: string } & Record<PartId, string>;
 
+/**
+ * The house as a canonical key: one `0` or `1` per switch, in `PART_IDS`
+ * order with the weather last.
+ *
+ * This is the endpoint's whole input space — twelve booleans, so 4096
+ * possible houses and nothing else. That is worth stating plainly, because
+ * it is what makes the public endpoint safe to leave open: it cannot be used
+ * to put an arbitrary prompt through the model, and 4096 answers can simply
+ * be cached, which turns unlimited traffic into a bounded cost.
+ */
+export const STATE_KEY_LENGTH = PART_IDS.length + 1;
+
+export function stateKey(s: HouseSwitches): string {
+  return [...PART_IDS.map((id) => s[id]), s.raining].map((on) => (on ? '1' : '0')).join('');
+}
+
+/** The inverse, for a request we do not get to trust. Null if malformed. */
+export function switchesFromKey(key: string): HouseSwitches | null {
+  if (typeof key !== 'string' || !new RegExp(`^[01]{${STATE_KEY_LENGTH}}$`).test(key)) return null;
+  const switches = { raining: key[PART_IDS.length] === '1' } as HouseSwitches;
+  PART_IDS.forEach((id, i) => {
+    switches[id] = key[i] === '1';
+  });
+  return switches;
+}
+
 /** The switches as the sentence Jev is handed. */
 export function describeHouse(s: HouseSwitches): HouseState {
   const state = { outside: WEATHER[s.raining ? 1 : 0] } as HouseState;
@@ -218,4 +244,6 @@ export interface JevReply {
   modelId?: string;
   inputTokens?: number;
   ms?: number;
+  /** True when this answer came from a cache rather than from the model. */
+  cached?: boolean;
 }

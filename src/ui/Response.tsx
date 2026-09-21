@@ -52,6 +52,7 @@ export function Response() {
         <span className="flex items-center gap-2">
           {reply && (
             <span className="text-[0.6rem] text-reed tabular-nums">
+              {reply.cached ? `${t.cached} · ` : ''}
               {reply.auth ? `${t.auths[reply.auth]} · ` : ''}
               {reply.ms !== undefined ? `${reply.ms} ms` : '—'}
               {reply.inputTokens ? ` · ${reply.inputTokens} ${t.tokens}` : ''}

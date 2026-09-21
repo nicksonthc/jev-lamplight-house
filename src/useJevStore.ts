@@ -5,6 +5,7 @@ import { judgeLocally } from './localJudge';
 import { setLook, snapLook } from './scene/look';
 import {
   PART_IDS,
+  stateKey,
   WELCOME_LEVELS,
   type HouseSwitches,
   type JevReply,
@@ -187,10 +188,10 @@ export const useJevStore = create<JevStore>((set, get) => ({
     const switches = get().switches;
     let reply: JevReply;
     try {
-      const response = await fetch('/api/jev', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(switches),
+      // A GET with the house as twelve bits, so the answer is cacheable at
+      // the edge: there are only 4096 of them, and a repeat never reaches
+      // the function — let alone the model.
+      const response = await fetch(`/api/jev?s=${stateKey(switches)}`, {
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`/api/jev answered ${response.status}`);

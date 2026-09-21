@@ -3,7 +3,6 @@ import { experimental_evaluate as evaluate } from 'ai';
 import { judgeLocally } from '../localJudge.js';
 import {
   describeHouse,
-  PART_IDS,
   QUESTIONS,
   type HouseSwitches,
   type JevReply,
@@ -76,14 +75,6 @@ function authorise({ oidcToken, apiKey }: GatewayCredentials) {
   return { gateway: createGateway(), via: 'oidc' as AuthMethod };
 }
 
-/** The request body, from a client we do not get to trust. */
-function readSwitches(body: unknown): HouseSwitches {
-  const raw = (body ?? {}) as Record<string, unknown>;
-  const s = { raining: raw.raining === true } as HouseSwitches;
-  for (const id of PART_IDS) s[id] = raw[id] === true;
-  return s;
-}
-
 /**
  * Jev answers in the shape its question types promise — the SDK validates that
  * before we see it — so this only narrows the strings to the unions the scene
@@ -98,10 +89,9 @@ const asVerdict = (answers: unknown) => answers as Verdict;
  * worth seeing.
  */
 export async function judgeHouse(
-  body: unknown,
+  switches: HouseSwitches,
   credentials: GatewayCredentials,
 ): Promise<JevReply> {
-  const switches = readSwitches(body);
   const { gateway, via } = authorise(credentials);
 
   const started = Date.now();
