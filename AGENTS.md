@@ -43,6 +43,21 @@ dress the fallback up to look like the model: it returns no distributions
 because it has none, and `check-jev.mjs` passes when the model is unreachable
 *only* because the page says so on screen.
 
+**Two things about `api/jev.ts` were learned by deploying it, and only by
+deploying it.** Vercel's Node runtime transpiles each traced server file in
+place and copies it into the lambda *without rewriting its imports*, so an
+extensionless or `.ts` specifier survives into the emitted `.js` and the
+function dies with `ERR_MODULE_NOT_FOUND` — with the traced files sitting
+right beside it. Every relative specifier down the server chain therefore
+ends in `.js`, pointing at the `.ts` file next to it. And the runtime hands
+the classic `(req, res)` pair whatever the handler's signature suggests, so a
+Web-standard `Request` handler dies on `request.json`; `src/server/handler.ts` is
+one plain Node handler called by both `api/jev.ts` and the dev plugin. It
+prefers `req.body` when the runtime has already parsed it, because reading
+the consumed stream yields an empty body — and an empty body judges a house
+with every switch off, which is a *plausible wrong answer* rather than an
+error.
+
 **The scene acts on the types, not on the prose.** A `boolean` comes back as
 P(true) and the cat is that probability walked along a curve; the `score` is a
 point on a five-rung ladder and drives the daylight; the `mood` choice picks a
